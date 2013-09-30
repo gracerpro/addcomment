@@ -1,9 +1,12 @@
 /bin/*
-/ide/*
+/ide/VC100/*
+/ide/codeblocks/*
 
 !/ide/VC100/*.sln
+!/ide/VC100/*.vcxproj
 !/ide/VC100/*.filters
-!/ide/VC100/*.vcproj
 
-/ide/codeblocks/*
+
+
+/ide/codeblocks/*.*
 !/ide/codeblocks/*.cbp
