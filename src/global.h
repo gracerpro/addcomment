@@ -4,16 +4,27 @@
 
 #define SZ_EXE_NAME           "addcomment"
 
-#ifdef WIN32
+#ifdef _WIN32
 	#define SZ_EXE_FILE_NAME  "addcomment.exe"
-	#define DIR_SEP           "\\"
-	#define DIR_SEP_CHAR      '\\'
 #else
 	#define SZ_EXE_FILE_NAME  "addcomment"
-	#define DIR_SEP           "/"
-	#define DIR_SEP_CHAR      '/'
 #endif
 
 
-bool fileExists(const char *szFile);
-char* deleteQuotes(char *szFileName);
+#if defined(_WIN32)
+	#define PATH_SEPARATOR      "\\"
+	#define PATH_SEPARATOR_CHAR '\\'
+#else
+	#define PATH_SEPARATOR      "/"
+	#define PATH_SEPARATOR_CHAR '/'
+#endif
+
+
+const char*   getWorkDir();
+const char*   getExeDir();
+char*         getPathSepEnd(char *szDir);
+bool          fileExists(const char *szFile);
+bool          isNewline(char c);
+bool          isPathSep(char c);
+bool          isAbsoluteFilePath(const char *szFileName);
+char*         setAbsolutePath(char *szFile);

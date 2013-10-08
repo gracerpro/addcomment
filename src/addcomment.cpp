@@ -1,12 +1,9 @@
-/*
-
-*/
+#include "global.h"
 #include <conio.h>
 #include <iostream>
 #include <fstream>
 #include <string>
-#include "global.h"
-#ifdef WIN32
+#ifdef _WIN32
 	#include <Windows.h>
 #endif
 
@@ -16,66 +13,55 @@ void showHelp() {
 	cout << SZ_EXE_FILE_NAME " \"path_to_target_direcrory\" [\"comment_file_name\"] "
 		"[\"filter_str\"] " << endl;
 
-	cout << SZ_EXE_FILE_NAME " -target_dir:path_to_direcrory [-c[omment_file]:file] "
-		"[-filter:file_filter] " << endl;
-}
+	cout << SZ_EXE_FILE_NAME " -dir path_to_direcrory [-c FILE] "
+		"[-f[ilter] file_filter] " << endl;
 
-inline bool isNewline(char c) {
-	return (c == 0x0A || c == 0x0D);
-}
-
-inline bool isDirSep(char c) {
-	return (c =='/' || c == '\\');
-}
-
-char* getDirSepEnd(char *szDir) {
-	char *p = strrchr(szDir, '/');
-	if (!p)
-		p = strrchr(szDir, '\\');
-	if (!p)
-		return NULL;
-
-	return p + 1;
+	cout << "[-b]\t(buckup)" << endl;
 }
 
 char* seekComment(char *data) {
-	if (data[0] != '/')
-		return data;
+	char *p = data;
 
-	while (data[0]) {
-		if (data[0] == '/' && data[1] == '/') {
-			while (data[0] && !isNewline(data[0]))
+	if (*p != '/')
+		return p;
+
+	while (*p) {
+		if (*p == '/' && p[1] == '/') {
+			while (*p && !isNewline(*p))
 				++data;
-			while (isNewline(data[0]))
+			while (isNewline(*p))
 				++data;
 			continue;
 		}
-		if (data[0] == '/' && data[1] == '*') {
-			data += 2;
-			while (data[0] && !(data[0] == '*' && data[1] == '/'))
-				++data;
-			if (data[0]) {
-				data += 2;
-				while (isNewline(data[0]))
-					++data;
+		if (*p == '/' && p[1] == '*') {
+			p += 2;
+			while (*p && !(*p == '*' && p[1] == '/'))
+				++p;
+			if (p) {
+				p += 2;
+				while (isNewline(*p))
+					++p;
 			}
 			continue;
 		}
 		break;
 	}
 
-	return data;
+	while (*p && (*p == ' ' || *p == '\n' || *p == '\r' || *p == '\t'))
+		++p;
+
+	return p;
 }
 
 char* addFilterToDir(char *szTargetDir, const char *szFilter) {
 	char *p = &szTargetDir[strlen(szTargetDir) - 1];
 
-	if (!(*p == '/' || *p == '\\')) {
-		*(++p) = DIR_SEP_CHAR;
+	if (!isPathSep(*p)) {
+		*(++p) = PATH_SEPARATOR_CHAR;
 		*(++p) = 0;
 	}
 	else {
-		p = getDirSepEnd(szTargetDir);
+		p = getPathSepEnd(szTargetDir);
 		if (!p)
 			return NULL;
 		*p = 0;
@@ -86,7 +72,40 @@ char* addFilterToDir(char *szTargetDir, const char *szFilter) {
 	return szTargetDir;
 }
 
-int addCommentToFile(const char *szFilePath, const std::string &sComment, const bool bBackup) {
+bool isWinEnding(const char *szFilePath) {
+	static char crlf[5];
+	char buf[201];
+	bool res = true; // default
+
+	std::fstream file(szFilePath, std::ifstream::binary | std::ifstream::in);
+
+	if (file.bad())
+		return res;
+
+	buf[200] = 0;
+	while (!file.eof()) {
+		buf[0] = 0;
+		file.read(buf, 200);
+		if (!buf[0])
+			break;
+		char *p = buf;
+		while (*p && *p != '\n')
+			++p;
+		if (p > buf && p[-1] == '\r') {
+			res = true;
+			break;
+		}
+		if (*p == '\n') {
+			res = false;
+			break;
+		}
+	}
+	file.close();
+
+	return res;
+}
+
+int addCommentToFile(const char *szFilePath, const char *szComment, const bool bBackup) {
 	std::fstream fs(szFilePath, std::ifstream::binary | std::fstream::in);
 
 	if (fs.fail()) {
@@ -120,18 +139,18 @@ int addCommentToFile(const char *szFilePath, const std::string &sComment, const 
 	}
 
 	fs.open(szFilePath, std::fstream::out | std::ifstream::binary | std::ofstream::trunc);
-	fs.write(sComment.c_str(), sComment.length());
+	fs << szComment;
 	fs.write(pCodeData, size - (pCodeData - pData));
 	fs.close();
 
 	delete[] pData;
 
-	return pCodeData - pData + sComment.length();
+	return pCodeData - pData;
 }
 
-int addCommentToDir(char *szTargetDir, const std::string &sComment, const bool bBackup,
-	const char *szFilter) {
-
+int addCommentToDir(char *szTargetDir, const char *szCommentWin, const char *szCommentUnix,
+	const bool bBackup, const char *szFilter)
+{
 	addFilterToDir(szTargetDir, szFilter);
 
 	WIN32_FIND_DATA wfd = {0};
@@ -144,7 +163,7 @@ int addCommentToDir(char *szTargetDir, const std::string &sComment, const bool b
 		return 0;
 
 	bool bFilterAll = strcmp(szFilter, "*.*") == 0;
-	char *pEnd = getDirSepEnd(szTargetDir);
+	char *pEnd = getPathSepEnd(szTargetDir);
 
 	do
 	{
@@ -155,8 +174,8 @@ int addCommentToDir(char *szTargetDir, const std::string &sComment, const bool b
 
 		if (wfd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
 			strcpy(pEnd, wfd.cFileName);
-			strcat(pEnd, DIR_SEP);
-			addCommentToDir(szTargetDir, sComment, bBackup, szFilter);
+			strcat(pEnd, PATH_SEPARATOR);
+			addCommentToDir(szTargetDir, szCommentWin, szCommentUnix, bBackup, szFilter);
 			continue;
 		}
 
@@ -170,7 +189,14 @@ int addCommentToDir(char *szTargetDir, const std::string &sComment, const bool b
 
 		strcpy(pEnd, wfd.cFileName);
 		cout << wfd.cFileName << endl;
-		addCommentToFile(szTargetDir, sComment, bBackup);
+
+		const char *szComment;
+		if (isWinEnding(szTargetDir))
+			szComment = szCommentWin;
+		else
+			szComment = szCommentUnix;
+
+		addCommentToFile(szTargetDir, szComment, bBackup);
 		++count;
 	}
 	while (FindNextFile(hFind, &wfd));
@@ -190,8 +216,8 @@ int addCommentToDir(char *szTargetDir, const std::string &sComment, const bool b
                     continue;
 				if (wfd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
 					strcpy(pEnd, wfd.cFileName);
-					strcat(pEnd, DIR_SEP);
-					addCommentToDir(szTargetDir, sComment, bBackup, szFilter);
+					strcat(pEnd, PATH_SEPARATOR);
+					addCommentToDir(szTargetDir, szCommentWin, szCommentUnix, bBackup, szFilter);
 					*pEnd = 0;
 				}
 			}
@@ -201,13 +227,50 @@ int addCommentToDir(char *szTargetDir, const std::string &sComment, const bool b
 	return count;
 }
 
-bool readComment(const char *szCommentFile, std::string &sComment) {
-	std::ifstream ifs(szCommentFile, ios::out);
+bool readComment(const char *szCommentFile, std::string &sCommentWin, std::string sCommentUnix) {
+	std::ifstream ifs(szCommentFile, std::ifstream::binary);
 
 	if (ifs.fail())
 		return false;
 
-	sComment.assign(std::istreambuf_iterator<char>(ifs), std::istreambuf_iterator<char>());
+	char *buffer;
+	const char *sz;
+	if (isWinEnding(szCommentFile)) {
+		// Dos to Unix convert
+		sCommentWin.assign(std::istreambuf_iterator<char>(ifs), std::istreambuf_iterator<char>());
+		size_t len = sCommentWin.size();
+		buffer = new char[len];
+		char *p = buffer;
+		sz = sCommentWin.c_str();
+		for (size_t i = 0; i < len; ++i) {
+			if (sz[i] == '\r')
+				continue;
+			*p = sz[i];
+			++p;
+		}
+		*p = 0;
+		sCommentUnix.assign(buffer);
+	}
+	else {
+		// Unix to Dos convert
+		sCommentUnix.assign(std::istreambuf_iterator<char>(ifs), std::istreambuf_iterator<char>());
+		size_t len = sCommentWin.size();
+		buffer = new char[len * 2];
+		char *p = buffer;
+		sz = sCommentWin.c_str();
+		for (size_t i = 0; i < len; ++i) {
+			if (sz[i] == '\r')
+				continue;
+			if (sz[i] == '\n') {
+				*p++ = '\r';
+			}
+			*p = sz[i];
+			++p;
+		}
+		*p = 0;
+		sCommentWin.assign(buffer);
+	}
+
 	ifs.close();
 
 	return true;
@@ -224,48 +287,39 @@ int parsingArguments(const int argc, const char **argv, char *szTargetDir,
 	for (int i = 1; i < argc; ++i) {
 		const char *pStart = argv[i];
 
-		if (!strncmp(pStart, "-t:", 3)) {
-			if (fileExists(pStart + 3)) {
-				strcpy(szTargetDir, pStart + 3);
-				deleteQuotes(szTargetDir);
+		if (!strcmp(pStart, "-dir")) {
+			if (++i < argc) {
+				strcpy(szTargetDir, argv[i]);
+				setAbsolutePath(szTargetDir);
 				++count;
 			}
 		}
-		else if (!strncmp(pStart, "-target_dir:", 12)) {
-			strcpy(szTargetDir, pStart + 12);
-			deleteQuotes(szTargetDir);
-			++count;
-		}
-		else if (!strncmp(pStart, "-c:", 3)) {
-				strcpy(szCommentFile, pStart + 3);
-				deleteQuotes(szCommentFile);
-				if (!fileExists(szCommentFile)) {
-					std::string str = argv[0];
-					size_t index = str.rfind(DIR_SEP_CHAR) + 1;
-					str.erase(str.begin() + index, str.end());
-					str += szCommentFile;
-					strcpy(szCommentFile, str.data());
-				}
+		else if (!strcmp(pStart, "-c")) {
+			if (++i < argc) {
+				strcpy(szCommentFile, argv[i]);
+				setAbsolutePath(szCommentFile);
 				++count;
+			}
 		}
 		else if (!strcmp(pStart, "-b")) {
 			bBackup = true;
 		}
-		else if (!strncmp(pStart, "-f:", 3)) {
-			filter = pStart + 3;
+		else if (!strcmp(pStart, "-f")) {
+			if (++i < argc) {
+				filter = argv[i];
+				++count;
+			}
 		}
-		else if (!strncmp(pStart, "-filter:", 8)) {
-			filter = pStart + 8;
+		else if (!strcmp(pStart, "-filter")) {
+			if (++i < argc) {
+				filter = argv[i];
+				++count;
+			}
 		}
 	}
 
 	if (!szTargetDir[0])
 		strcpy(szTargetDir, argv[1]);
-/*	if (!fileExists(szTargetDir)) {
-		strcpy(szTargetDir, argv[0]);
-		char *p = getDirSepEnd(szTargetDir);
-		*p = 0;
-	}*/
 
 	return count;
 }
@@ -278,7 +332,8 @@ int main(int argc, const char **argv) {
 
 	char         szTargetDir[MAX_PATH];
 	char         szCommentFile[MAX_PATH];
-	std::string  sComment;
+	std::string  sCommentWin;
+	std::string  sCommentUnix;
 	std::string  sFilter;
 	bool         bBackup;
 
@@ -294,14 +349,14 @@ int main(int argc, const char **argv) {
 //	sCommentFile = "d:\\SlaFF\\Visual C++ 10\\addcomment\\bin\\comment.txt";
 #endif
 
-	char *pEnd = getDirSepEnd(szTargetDir);
+	char *pEnd = getPathSepEnd(szTargetDir);
 	if (!pEnd) {
 		size_t len = strlen(szTargetDir);
-		szTargetDir[len]     = DIR_SEP_CHAR;
+		szTargetDir[len]     = PATH_SEPARATOR_CHAR;
 		szTargetDir[len + 1] = 0;
 	}
 
-	if (!readComment(szCommentFile, sComment)) {
+	if (!readComment(szCommentFile, sCommentWin, sCommentUnix)) {
 		cerr << "Couldn't read the comment file\n" << szCommentFile << endl;
 		return -1;
 	}
@@ -324,9 +379,9 @@ int main(int argc, const char **argv) {
 		size_t len = p - pFilter;
 		strncpy(szFilter, pFilter, len);
 		szFilter[len] = 0;
-		addCommentToDir(szTargetDir, sComment, bBackup, szFilter);
+		addCommentToDir(szTargetDir, sCommentWin.c_str(), sCommentUnix.c_str(), bBackup, szFilter);
 		pFilter += len + 1;
 	}
 	if (pFilter && pFilter[0])
-		addCommentToDir(szTargetDir, sComment, bBackup, pFilter);
+		addCommentToDir(szTargetDir, sCommentWin.c_str(), sCommentUnix.c_str(), bBackup, pFilter);
 }
