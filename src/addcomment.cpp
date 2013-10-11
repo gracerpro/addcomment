@@ -275,7 +275,7 @@ bool readComment(const char *szCommentFile, std::string &sCommentWin, std::strin
 	return true;
 }
 
-int parsingArguments(const int argc, const char **argv, char *szTargetDir,
+int parseArguments(const int argc, const char **argv, char *szTargetDir,
 	char *szCommentFile, std::string &filter, bool &bBackup)
 {
 	int count = 0;
@@ -343,7 +343,7 @@ int main(int argc, const char **argv) {
 	std::string  sFilter;
 	bool         bBackup;
 
-	parsingArguments(argc, argv, szTargetDir, szCommentFile, sFilter, bBackup);
+	parseArguments(argc, argv, szTargetDir, szCommentFile, sFilter, bBackup);
 
 	if (!szTargetDir[0]) {
 		showHelp();
