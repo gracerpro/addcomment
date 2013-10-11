@@ -21,9 +21,15 @@
     <ClCompile Include="..\..\src\global.cpp">
       <Filter>Файлы исходного кода</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\file_handle.cpp">
+      <Filter>Файлы исходного кода</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\global.h">
+      <Filter>Заголовочные файлы</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\file_handle.h">
       <Filter>Заголовочные файлы</Filter>
     </ClInclude>
   </ItemGroup>

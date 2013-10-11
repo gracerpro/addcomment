@@ -3,9 +3,13 @@
 */
 #include "global.h"
 #include <string.h>
-#include <io.h>
+//#include <sys\stat.h>
+//#include <sys\types.h>
 #ifdef _WIN32
+	#include <io.h>
 	#include <Windows.h>
+#else
+	#include <dirent.h>
 #endif
 
 bool fileExists(const char *szFile) {
@@ -16,7 +20,7 @@ bool fileExists(const char *szFile) {
 #endif
 }
 
-inline bool isPathSep(char c) {
+bool isPathSep(char c) {
 	return (c =='/' || c == '\\');
 }
 
@@ -80,4 +84,10 @@ char* setAbsolutePath(char *szFile) {
 	}
 
 	return szFile;
+}
+
+bool makeFileHidden(const char *szFile) {
+#ifdef _WIN32
+	return SetFileAttributes(szFile, FILE_ATTRIBUTE_HIDDEN) > 0;
+#endif
 }

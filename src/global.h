@@ -28,3 +28,5 @@ bool          isNewline(char c);
 bool          isPathSep(char c);
 bool          isAbsoluteFilePath(const char *szFileName);
 char*         setAbsolutePath(char *szFile);
+
+bool          makeFileHidden(const char *szFile);

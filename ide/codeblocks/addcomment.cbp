@@ -33,6 +33,8 @@
 			<Add option="-fexceptions" />
 		</Compiler>
 		<Unit filename="..\..\src\addcomment.cpp" />
+		<Unit filename="..\..\src\file_handle.cpp" />
+		<Unit filename="..\..\src\file_handle.h" />
 		<Unit filename="..\..\src\global.cpp" />
 		<Unit filename="..\..\src\global.h" />
 		<Extensions>

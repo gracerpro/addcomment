@@ -1,4 +1,5 @@
 #include "global.h"
+#include "file_handle.h"
 #include <conio.h>
 #include <iostream>
 #include <fstream>
@@ -72,8 +73,7 @@ char* addFilterToDir(char *szTargetDir, const char *szFilter) {
 	return szTargetDir;
 }
 
-bool isWinEnding(const char *szFilePath) {
-	static char crlf[5];
+bool isWinNewLine(const char *szFilePath) {
 	char buf[201];
 	bool res = true; // default
 
@@ -134,7 +134,7 @@ int addCommentToFile(const char *szFilePath, const char *szComment, const bool b
 		if (ofs.good()) {
 			ofs.write(pData, size);
 			ofs.close();
-			SetFileAttributes(sFile.c_str(), FILE_ATTRIBUTE_HIDDEN);
+			makeFileHidden(sFile.c_str());
 		}
 	}
 
@@ -153,13 +153,12 @@ int addCommentToDir(char *szTargetDir, const char *szCommentWin, const char *szC
 {
 	addFilterToDir(szTargetDir, szFilter);
 
-	WIN32_FIND_DATA wfd = {0};
+	FileHandler fileHandler;
 	size_t count = 0;
 
 	cout << "DIR: " << szTargetDir << endl;
 
-	HANDLE hFind = FindFirstFile(szTargetDir, &wfd);
-	if (hFind == INVALID_HANDLE_VALUE)
+	if (!fileHandler.getFirstFile(szTargetDir))
 		return 0;
 
 	bool bFilterAll = strcmp(szFilter, "*.*") == 0;
@@ -167,31 +166,27 @@ int addCommentToDir(char *szTargetDir, const char *szCommentWin, const char *szC
 
 	do
 	{
-	    const char *szFile = wfd.cFileName;
+		const char *szFile = fileHandler.getFileName();
 		if ((szFile[0] == '.' && szFile[1] == '.' && szFile[2] == 0) ||
 			(szFile[0] == '.' && szFile[1] == 0))
 			continue;
 
-		if (wfd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-			strcpy(pEnd, wfd.cFileName);
+		if (fileHandler.isDirectory()) {
+			strcpy(pEnd, fileHandler.getFileName());
 			strcat(pEnd, PATH_SEPARATOR);
 			addCommentToDir(szTargetDir, szCommentWin, szCommentUnix, bBackup, szFilter);
 			continue;
 		}
 
-		if (wfd.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN ||
-			wfd.dwFileAttributes & FILE_ATTRIBUTE_OFFLINE ||
-			wfd.dwFileAttributes & FILE_ATTRIBUTE_READONLY ||
-			wfd.dwFileAttributes & FILE_ATTRIBUTE_SYSTEM)
-		{
+		if (!fileHandler.isWriteableFile()) {
 			continue;
 		}
 
-		strcpy(pEnd, wfd.cFileName);
-		cout << wfd.cFileName << endl;
+		strcpy(pEnd, fileHandler.getFileName());
+		cout << fileHandler.getFileName() << endl;
 
 		const char *szComment;
-		if (isWinEnding(szTargetDir))
+		if (isWinNewLine(szTargetDir))
 			szComment = szCommentWin;
 		else
 			szComment = szCommentUnix;
@@ -199,29 +194,29 @@ int addCommentToDir(char *szTargetDir, const char *szCommentWin, const char *szC
 		addCommentToFile(szTargetDir, szComment, bBackup);
 		++count;
 	}
-	while (FindNextFile(hFind, &wfd));
+	while (fileHandler.getNextFile());
 
-	FindClose(hFind);
+	fileHandler.close();
 
 	*pEnd = 0;
 	// loop throuth directories
 	if (!bFilterAll) {
 		addFilterToDir(szTargetDir, "*.*");
-		HANDLE hFind = FindFirstFile(szTargetDir, &wfd);
-		if (hFind) {
-			while (FindNextFile(hFind, &wfd)) {
-				const char *szFile = wfd.cFileName;
+		if (fileHandler.getFirstFile(szTargetDir)) {
+			while (fileHandler.getNextFile()) {
+				const char *szFile = fileHandler.getFileName();
                 if ((szFile[0] == '.' && szFile[1] == '.' && szFile[2] == 0) ||
                     (szFile[0] == '.' && szFile[1] == 0))
                     continue;
-				if (wfd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-					strcpy(pEnd, wfd.cFileName);
+				if (fileHandler.isDirectory()) {
+					strcpy(pEnd, fileHandler.getFileName());
 					strcat(pEnd, PATH_SEPARATOR);
 					addCommentToDir(szTargetDir, szCommentWin, szCommentUnix, bBackup, szFilter);
 					*pEnd = 0;
 				}
 			}
 		}
+		fileHandler.close();
 	}
 
 	return count;
@@ -235,7 +230,7 @@ bool readComment(const char *szCommentFile, std::string &sCommentWin, std::strin
 
 	char *buffer;
 	const char *sz;
-	if (isWinEnding(szCommentFile)) {
+	if (isWinNewLine(szCommentFile)) {
 		// Dos to Unix convert
 		sCommentWin.assign(std::istreambuf_iterator<char>(ifs), std::istreambuf_iterator<char>());
 		size_t len = sCommentWin.size();
@@ -318,8 +313,14 @@ int parsingArguments(const int argc, const char **argv, char *szTargetDir,
 		}
 	}
 
-	if (!szTargetDir[0])
+	if (!szTargetDir[0] && argc >= 1) {
 		strcpy(szTargetDir, argv[1]);
+		setAbsolutePath(szTargetDir);
+	}
+    if (!szCommentFile[0] && argc >= 2) {
+		strcpy(szCommentFile, argv[2]);
+		setAbsolutePath(szCommentFile);
+    }
 
 	return count;
 }
@@ -357,7 +358,7 @@ int main(int argc, const char **argv) {
 	}
 
 	if (!readComment(szCommentFile, sCommentWin, sCommentUnix)) {
-		cerr << "Couldn't read the comment file\n" << szCommentFile << endl;
+		cerr << "Couldn't read the comment file <" << szCommentFile << ">" << endl;
 		return -1;
 	}
 
@@ -384,4 +385,6 @@ int main(int argc, const char **argv) {
 	}
 	if (pFilter && pFilter[0])
 		addCommentToDir(szTargetDir, sCommentWin.c_str(), sCommentUnix.c_str(), bBackup, pFilter);
+
+	return 0;
 }
