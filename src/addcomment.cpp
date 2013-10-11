@@ -10,6 +10,14 @@
 
 using namespace std;
 
+inline bool isParentDirRef(const char* szFileName) {
+	return (szFileName[0] == '.' && szFileName[1] == '.' && szFileName[2] == 0);
+}
+
+inline bool isCurDirRef(const char* szFileName) {
+	return (szFileName[0] == '.' && szFileName == 0);
+}
+
 void showHelp() {
 	cout << SZ_EXE_FILE_NAME " \"path_to_target_direcrory\" [\"comment_file_name\"] "
 		"[\"filter_str\"] " << endl;
@@ -75,7 +83,7 @@ char* addFilterToDir(char *szTargetDir, const char *szFilter) {
 
 bool isWinNewLine(const char *szFilePath) {
 	char buf[201];
-	bool res = true; // default
+	bool res = true;
 
 	std::fstream file(szFilePath, std::ifstream::binary | std::ifstream::in);
 
@@ -167,9 +175,9 @@ int addCommentToDir(char *szTargetDir, const char *szCommentWin, const char *szC
 	do
 	{
 		const char *szFile = fileHandler.getFileName();
-		if ((szFile[0] == '.' && szFile[1] == '.' && szFile[2] == 0) ||
-			(szFile[0] == '.' && szFile[1] == 0))
+		if (isParentDirRef(szFile) || isCurDirRef(szFile)) {
 			continue;
+		}
 
 		if (fileHandler.isDirectory()) {
 			strcpy(pEnd, fileHandler.getFileName());
@@ -185,11 +193,7 @@ int addCommentToDir(char *szTargetDir, const char *szCommentWin, const char *szC
 		strcpy(pEnd, fileHandler.getFileName());
 		cout << fileHandler.getFileName() << endl;
 
-		const char *szComment;
-		if (isWinNewLine(szTargetDir))
-			szComment = szCommentWin;
-		else
-			szComment = szCommentUnix;
+		const char *szComment = (isWinNewLine(szTargetDir)) ? szCommentWin : szCommentUnix;
 
 		addCommentToFile(szTargetDir, szComment, bBackup);
 		++count;
@@ -205,9 +209,9 @@ int addCommentToDir(char *szTargetDir, const char *szCommentWin, const char *szC
 		if (fileHandler.getFirstFile(szTargetDir)) {
 			while (fileHandler.getNextFile()) {
 				const char *szFile = fileHandler.getFileName();
-                if ((szFile[0] == '.' && szFile[1] == '.' && szFile[2] == 0) ||
-                    (szFile[0] == '.' && szFile[1] == 0))
+                if (isParentDirRef(szFile) || isCurDirRef(szFile))
                     continue;
+
 				if (fileHandler.isDirectory()) {
 					strcpy(pEnd, fileHandler.getFileName());
 					strcat(pEnd, PATH_SEPARATOR);
@@ -228,15 +232,14 @@ bool readComment(const char *szCommentFile, std::string &sCommentWin, std::strin
 	if (ifs.fail())
 		return false;
 
-	char *buffer;
-	const char *sz;
 	if (isWinNewLine(szCommentFile)) {
 		// Dos to Unix convert
 		sCommentWin.assign(std::istreambuf_iterator<char>(ifs), std::istreambuf_iterator<char>());
 		size_t len = sCommentWin.size();
-		buffer = new char[len];
+		char *buffer = new char[len];
 		char *p = buffer;
-		sz = sCommentWin.c_str();
+		const char *sz = sCommentWin.c_str();
+
 		for (size_t i = 0; i < len; ++i) {
 			if (sz[i] == '\r')
 				continue;
@@ -250,9 +253,10 @@ bool readComment(const char *szCommentFile, std::string &sCommentWin, std::strin
 		// Unix to Dos convert
 		sCommentUnix.assign(std::istreambuf_iterator<char>(ifs), std::istreambuf_iterator<char>());
 		size_t len = sCommentWin.size();
-		buffer = new char[len * 2];
+		char *buffer = new char[len * 2];
 		char *p = buffer;
-		sz = sCommentWin.c_str();
+		const char *sz = sCommentWin.c_str();
+
 		for (size_t i = 0; i < len; ++i) {
 			if (sz[i] == '\r')
 				continue;
@@ -272,7 +276,8 @@ bool readComment(const char *szCommentFile, std::string &sCommentWin, std::strin
 }
 
 int parsingArguments(const int argc, const char **argv, char *szTargetDir,
-	char *szCommentFile, std::string &filter, bool &bBackup) {
+	char *szCommentFile, std::string &filter, bool &bBackup)
+{
 	int count = 0;
 
 	bBackup = false;
@@ -345,10 +350,6 @@ int main(int argc, const char **argv) {
 		cerr << "The target directory is not found" << endl;
 		return -1;
 	}
-#ifdef _DEBUG
-//	strcpy(szTargetDir, "d:\\SlaFF\\Visual C++ 10\\addcomment\\bin\\test\\");
-//	sCommentFile = "d:\\SlaFF\\Visual C++ 10\\addcomment\\bin\\comment.txt";
-#endif
 
 	char *pEnd = getPathSepEnd(szTargetDir);
 	if (!pEnd) {

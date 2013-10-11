@@ -3,8 +3,6 @@
 */
 #include "global.h"
 #include <string.h>
-//#include <sys\stat.h>
-//#include <sys\types.h>
 #ifdef _WIN32
 	#include <io.h>
 	#include <Windows.h>
