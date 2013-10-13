@@ -322,10 +322,10 @@ int parseArguments(const int argc, const char **argv, char *szTargetDir,
 		strcpy(szTargetDir, argv[1]);
 		setAbsolutePath(szTargetDir);
 	}
-    if (!szCommentFile[0] && argc >= 2) {
+	if (!szCommentFile[0] && argc >= 2) {
 		strcpy(szCommentFile, argv[2]);
 		setAbsolutePath(szCommentFile);
-    }
+	}
 
 	return count;
 }
