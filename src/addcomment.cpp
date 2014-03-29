@@ -113,7 +113,7 @@ bool isWinNewLine(const char *szFilePath) {
 	return res;
 }
 
-int addCommentToFile(const char *szFilePath, const char *szComment, const bool bBackup) {
+ptrdiff_t addCommentToFile(const char *szFilePath, const char *szComment, const bool bBackup) {
 	std::fstream fs(szFilePath, std::ifstream::binary | std::fstream::in);
 
 	if (fs.fail()) {
@@ -125,7 +125,17 @@ int addCommentToFile(const char *szFilePath, const char *szComment, const bool b
 	long size = static_cast<long>(fs.tellp());
 	fs.seekp(0, std::ios::beg);
 
-	char *pData = new char[size + 1];
+	char *pData = NULL;
+	try
+	{
+		pData = new char[size + 1];
+	}
+	catch (...)
+	{
+		cerr << "Memory allocation failed. Size " << size << endl;
+		fs.close();
+		return 0;
+	}
 
 	fs.read(pData, size);
 	pData[size] = 0;
@@ -156,7 +166,7 @@ int addCommentToFile(const char *szFilePath, const char *szComment, const bool b
 	return pCodeData - pData;
 }
 
-int addCommentToDir(char *szTargetDir, const char *szCommentWin, const char *szCommentUnix,
+size_t addCommentToDir(char *szTargetDir, const char *szCommentWin, const char *szCommentUnix,
 	const bool bBackup, const char *szFilter)
 {
 	addFilterToDir(szTargetDir, szFilter);
@@ -221,12 +231,13 @@ int addCommentToDir(char *szTargetDir, const char *szCommentWin, const char *szC
 			}
 		}
 		fileHandler.close();
+		*pEnd = 0;
 	}
 
 	return count;
 }
 
-bool readComment(const char *szCommentFile, std::string &sCommentWin, std::string sCommentUnix) {
+bool readComment(const char *szCommentFile, std::string &sCommentWin, std::string& sCommentUnix) {
 	std::ifstream ifs(szCommentFile, std::ifstream::binary);
 
 	if (ifs.fail())
@@ -322,7 +333,7 @@ int parseArguments(const int argc, const char **argv, char *szTargetDir,
 		strcpy(szTargetDir, argv[1]);
 		setAbsolutePath(szTargetDir);
 	}
-	if (!szCommentFile[0] && argc >= 2) {
+	if (!szCommentFile[0] && argc > 2) {
 		strcpy(szCommentFile, argv[2]);
 		setAbsolutePath(szCommentFile);
 	}
